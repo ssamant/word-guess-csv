@@ -1,17 +1,21 @@
+require 'csv'
+
 class WordGuess
-  def initialize(debug = false)
+  def initialize(debug = true)
     # are we in debug mode?
     @debug = debug
 
     # possible words, selected at random
-    @words = {
-      "e" => %w(dog cat bug hat cap lit kin fan fin fun tan ten tin ton),
-      "m" => %w(plain claim brine crime alive bride skine drive slime stein jumpy),
-      "h" => %w(
-          machiavellian prestidigitation plenipotentiary quattuordecillion
-          magnanimous unencumbered bioluminescent circumlocution
-        )
-    }
+    @words = read_words
+
+    # {
+    #   "e" => %w(dog cat bug hat cap lit kin fan fin fun tan ten tin ton),
+    #   "m" => %w(plain claim brine crime alive bride skine drive slime stein jumpy),
+    #   "h" => %w(
+    #       machiavellian prestidigitation plenipotentiary quattuordecillion
+    #       magnanimous unencumbered bioluminescent circumlocution
+    #     )
+    # }
 
     # players attempts allowed by difficulty
     @tries = {
@@ -41,94 +45,105 @@ class WordGuess
     play_turn
   end
 
-  def play_turn
-    # a turn begins by asking a player for their guess
-    letter = ask_for_letter
+  def read_words
+    words_csv = CSV.read("words.csv")  #reads csv file into array
+    word_hash = {} #key is difficulty level; values is array of words
+    words_csv.each do |line|
+      key = line[0]
+      value = line[1..-1]
+      word_hash[key] = value
+    end
+    return word_hash
+  end
 
-    # update the word with the letter, maybe
-    update_user_word!(letter)
+    def play_turn
+      # a turn begins by asking a player for their guess
+      letter = ask_for_letter
 
-    # decrement the available guesses
-    # unless the letter matches and it's not already in the @guessed array
-    lose_a_turn?(letter)
+      # update the word with the letter, maybe
+      update_user_word!(letter)
 
-    # push the letter into the guessed array, if we need to
-    add_to_guessed(letter)
+      # decrement the available guesses
+      # unless the letter matches and it's not already in the @guessed array
+      lose_a_turn?(letter)
 
-    # debugging
-    puts "Previous guesses: #{ @guessed.join(" ") }"
-    puts "You guessed #{ letter }. The word is now #{ @user_word }."
-    puts "You have #{ @guesses } guesses left."
+      # push the letter into the guessed array, if we need to
+      add_to_guessed(letter)
 
-    # determine if the player has won or lost
-    if won?
-      end_game(true)
-    elsif lost?
-      end_game(false)
-    else # play another turn if we haven't won or lost
-      play_turn
+      # debugging
+      puts "Previous guesses: #{ @guessed.join(" ") }"
+      puts "You guessed #{ letter }. The word is now #{ @user_word }."
+      puts "You have #{ @guesses } guesses left."
+
+      # determine if the player has won or lost
+      if won?
+        end_game(true)
+      elsif lost?
+        end_game(false)
+      else # play another turn if we haven't won or lost
+        play_turn
+      end
+    end
+
+    private
+
+    def add_to_guessed(letter)
+      # push the letter to the array, then get rid of duplicates.
+      @guessed.push(letter.upcase).uniq!
+    end
+
+    def end_game(won)
+      if won
+        puts "You wins the game! Yay! ^␣^"
+      else
+        puts "You did not wins the game. :( Next time you will, I bet. <3"
+      end
+      exit # game over!
+    end
+
+    def won?
+      # we win when the user has guessed all the letters to the word
+      @word == @user_word
+    end
+
+    def lost?
+      # we lose when the user is out of guesses and has not guessed the word
+      !won? && @guesses <= 0
+    end
+
+    def lose_a_turn?(letter)
+      # if the guessed letter isn't part of the word and
+      # the guessed letter isn't already in the list of guesses
+      if !@word.chars.include?(letter) && !@guessed.include?(letter.upcase)
+        @guesses -= 1
+      end
+    end
+
+    def set_mode
+      mode = ""
+      until %w(e m h).include? mode
+        print "\nThis can be (e)asy, (m)edium or really (h)ard. The choice is yours: "
+        mode = gets.chomp
+      end
+
+      mode
+    end
+
+    def update_user_word!(letter)
+      @word.chars.each_index do |index|
+        @user_word[index] = letter if @word[index] == letter
+      end
+    end
+
+    def ask_for_letter
+      letter = ""
+      until ('a'..'z').include? letter
+        print "\nPlease guess a letter! (a..z): "
+        letter = gets.chomp.downcase
+      end
+
+      letter
     end
   end
 
-  private
-
-  def add_to_guessed(letter)
-    # push the letter to the array, then get rid of duplicates.
-    @guessed.push(letter.upcase).uniq!
-  end
-
-  def end_game(won)
-    if won
-      puts "You wins the game! Yay! ^␣^"
-    else
-      puts "You did not wins the game. :( Next time you will, I bet. <3"
-    end
-    exit # game over!
-  end
-
-  def won?
-    # we win when the user has guessed all the letters to the word
-    @word == @user_word
-  end
-
-  def lost?
-    # we lose when the user is out of guesses and has not guessed the word
-    !won? && @guesses <= 0
-  end
-
-  def lose_a_turn?(letter)
-    # if the guessed letter isn't part of the word and
-    # the guessed letter isn't already in the list of guesses
-    if !@word.chars.include?(letter) && !@guessed.include?(letter.upcase)
-      @guesses -= 1
-    end
-  end
-
-  def set_mode
-    mode = ""
-    until %w(e m h).include? mode
-      print "\nThis can be (e)asy, (m)edium or really (h)ard. The choice is yours: "
-      mode = gets.chomp
-    end
-
-    mode
-  end
-
-  def update_user_word!(letter)
-    @word.chars.each_index do |index|
-      @user_word[index] = letter if @word[index] == letter
-    end
-  end
-
-  def ask_for_letter
-    letter = ""
-    until ('a'..'z').include? letter
-      print "\nPlease guess a letter! (a..z): "
-      letter = gets.chomp.downcase
-    end
-
-    letter
-  end
-end
-
-WordGuess.new
+  WordGuess.new
